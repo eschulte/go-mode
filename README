@@ -1,0 +1,9 @@
+go-mode
+
+An Emacs mode for playing go and parsing/navigating/editing sgf files.
+
+Intended functionality:
+- reading and writing between sgf files and lisp trees,
+- translate between sgf and gtp, igs text commands, and maybe gmp
+- communication with local and remote go programs and players
+- viewing/editing sgf files, and playing games through a Go board interface

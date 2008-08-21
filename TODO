@@ -1,0 +1,118 @@
+# -*- mode: org -*-
+# 
+#+TITLE:     TODO SGF-Mode
+#+SEQ_TODO:  TODO PARTIAL MAYBE WAITING | DONE CANCELLED
+#+DRAWERS:   SNIP
+
+* Tasks (TODOs)
+
+** TODO build in an internal representation of an event
+
+should basically be the intersection of those parts of the game...
+- black moves
+- white moves
+- set boardsize
+- set komi
+- undo previous move etc...
+which are common between GTP, SGF, and GMP
+
+for starters lets say...
+| event-type           | argument      | representation                      |
+|----------------------+---------------+-------------------------------------|
+| set_board size       | int           | (:board_size 19)                    |
+| set_komi             | float         | (:komi 0.5)                         |
+| place_handicap_stone | color, vertex | (:handicap 'white 'Q4)              |
+| move                 | color, vertex | (:move 'black 'Q4)                  |
+| comment              | who, text     | (:comment "schulte" "text comment") |
+| undo                 | none          | (:undo)                             |
+
+and we can represent them as lists
+
+(:symbol &rest data...)
+
+** TODO rename everything from sgf to go
+
+doing this now, and re-organizing the files...
+
+** TODO actually get this playing games [/]
+
+this means...
+- [ ] define GO mode or go-start-game to get things going
+- [ ] gtp translation working
+- [ ] board functions working
+
+This needs to initiate...
+- [ ] blank board buffer
+- [ ] blank sgf tree
+- [ ] start a gnugo process
+
+** TODO translations [/]
+
+- [ ] gtp <-> move
+- [ ] sgf <-> move
+
+** TODO go-board [/]
+flesh out all of the board functions
+
+*** go-board-mode
+
+Some things to keep in mind [[info:elisp:Major%20Modes][info:elisp:Major Modes]]
+
+- The mode should specify how to do highlighting for Font Lock mode,
+  by setting up a buffer-local value for the variable
+  `font-lock-defaults' (*note Font Lock Mode::).
+- The mode should specify how Imenu should find the definitions or
+  sections of a buffer, by setting up a buffer-local value for the
+  variable `imenu-generic-expression', for the two variables
+  `imenu-prev-index-position-function' and
+  `imenu-extract-index-name-function', or for the variable
+  `imenu-create-index-function' (*note Imenu::).
+- The mode can specify a local value for
+  `eldoc-documentation-function' to tell ElDoc mode how to handle this
+  mode.
+
+
+* Notes
+
+** GO formats
+
+*** SGF
+Intended for recording GO Games including played moves, alternate
+variations, comments, etc...
+- [[http://www.red-bean.com/sgf/]]
+
+
+*** GTP
+Mainly intended for communication with go programs.
+- [[http://www.lysator.liu.se/~gunnar/gtp/]]
+- [[http://www.lysator.liu.se/~gunnar/gtp/gtp2-spec-draft2/gtp2-spec.html][specs]]
+- [[http://www.lysator.liu.se/~gunnar/gtp/gtp2-spec-draft2/gtp2-spec.html#SECTION00073000000000000000][gtp-commands]]
+
+all gnugo gtp commands [[elisp:(sgf-gnugo-gtp-commands)]]
+
+Setup Commands
+| command             | effect                                       | arguments            |
+|---------------------+----------------------------------------------+----------------------|
+| boardsize           | set the size of the board                    | int size             |
+| clear_board         | clears the board resets everything           | none                 |
+| komi                | change the komi                              | float new komi       |
+| fixed_handicap      | places handicap stones on the board          | int number_of_stones |
+| place_free_handicap | places handicap stones at engine's prefernce | int number_of_stones |
+| set_free_handicap   | set free handicap stones on the board        | list of vertices     |
+
+Play Commands
+| command | effect                                           | arguments               |
+|---------+--------------------------------------------------+-------------------------|
+| play    | stone is placed on board, and board is updated   | move (color and vertex) |
+| genmove | the engine places a stone on the board           | color                   |
+| undo    | everything reset to before previous played stone | none                    |
+white, black, genmove_white, genmove_black
+
+*** GMP
+
+a precursor and subset? of GTP
+
+
+* Buffer Dictionary
+ LocalWords:  GMP GTP SGF boardsize komi gtp sgf gnugo LocalWords TODOs TODO
+ LocalWords:  SEQ org
