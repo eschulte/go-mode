@@ -52,7 +52,7 @@
 
 (defun go-board-whos-turn ()
   (interactive)
-  (message (format "%S" (cadr (assoc go-board-next-turn go-board-players)))))
+  (message (format "%S" (cadr (assoc go-board-whos-turn go-board-players)))))
 
 (defun go-board-row-at-point (&optional point)
   (interactive)
@@ -95,15 +95,17 @@
       (recenter)
       (goto-char return-p)))
 
-(defun go-board-play-move (&optional color vertex)
+(defun go-board-make-move (&optional color vertex)
   "Make a move on the board and save it to the buffer"
   (interactive)
-  (let* ((color (or color go-board-next-turn))
+  (message "go-board-make-move")
+  (let* ((color (or color go-board-whos-turn))
 	 (vertex (or vertex (go-board-point-to-vertex)))
 	 (gtp-move (go-gtp-move-to-gtp (cons color vertex))))
     (message gtp-move)
     (go-gnugo-send/return gtp-move)
-    (go-board-toggle-turn)))
+    (go-gnugo-send/return "genmove_white")
+    (go-board-refresh)))
 
 (defun go-board-dragon-stones (stone)
   (interactive)
@@ -132,31 +134,31 @@
 
 (defvar go-board-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map " " 'go-board-play-move)
+    (define-key map " " 'go-board-make-move)
     (define-key map "g" 'go-gnugo-send/return)
     (define-key map "w" 'go-board-whos-turn)
     map)
   "Keymap for `go-board-mode'.")
 
-(defface go-board-X
-  '((t :bold t :background "#ecb86a" :foreground "Black"))
-  "Face for black (X) pieces on the GO board."
-  :group 'go-board)
+;; (defface go-board-X
+;;   '((t :bold t :background "#ecb86a" :foreground "Black"))
+;;   "Face for black (X) pieces on the GO board."
+;;   :group 'go-board)
 
-(defface go-board-Y
-  '((t :bold t :background "#ecb86a" :foreground "White"))
-  "Face for white (O) pieces on the GO board."
-  :group 'go-board)
+;; (defface go-board-Y
+;;   '((t :bold t :background "#ecb86a" :foreground "White"))
+;;   "Face for white (O) pieces on the GO board."
+;;   :group 'go-board)
 
-(defface go-board-vertex
-  '((t :bold t :background "#ecb86a" :foreground "Black"))
-  "Face for black (X) pieces on the GO board."
-  :group 'go-board)
+;; (defface go-board-vertex
+;;   '((t :bold t :background "#ecb86a" :foreground "Black"))
+;;   "Face for black (X) pieces on the GO board."
+;;   :group 'go-board)
 
-(defface go-board-hoshi
-  '((t :bold t :background "#ecb86a" :foreground "Black"))
-  "Face for black (X) pieces on the GO board."
-  :group 'go-board)
+;; (defface go-board-hoshi
+;;   '((t :bold t :background "#ecb86a" :foreground "Black"))
+;;   "Face for black (X) pieces on the GO board."
+;;   :group 'go-board)
 
 (defface go-board-background
   '((t :bold t :background "#ecb86a"))
@@ -164,10 +166,12 @@
   :group 'go-board)
 
 (defconst go-board-font-lock-keywords
-  '(("X" . go-board-X)
-    ("O" . go-board-O)
-    ("." . go-board-vertex)
-    ("+" . go-board-hoshi))
+  '(
+;;     ("X" . go-board-X)
+;;     ("O" . go-board-O)
+;;     ("." . go-board-vertex)
+;;     ("+" . go-board-hoshi)
+    )
   "Font lock keywords for `go-board-mode'.")
 
 ;;
@@ -193,6 +197,17 @@
   (go-gnugo-start-process)
   (go-board-refresh)
   (run-mode-hooks 'go-board-mode-hook))
+
+;;--------------------------------------------------------------------------------
+;; start up a game
+(defvar go-buffer-name "*go-board*"
+  "name for the go buffer")
+(defun go-start-game ()
+  (interactive)
+  (if (get-buffer go-buffer-name) (kill-buffer go-buffer-name))
+  (let ((buffer (get-buffer-create go-buffer-name)))
+    (switch-to-buffer go-buffer-name)
+    (go-board-mode)))
 
 (provide 'go-board)
 ;;; go-board.el ends here
