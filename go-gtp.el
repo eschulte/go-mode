@@ -57,8 +57,7 @@
   "Convert an sgf element to a gtp command."
   (let ((key (car element))
 	(value (cadr element)))
-    )
-  )
+    ))
 
 (defun go-gtp-command-to-sgf (command)
   "Convert a gtp command to an sgf element"

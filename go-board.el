@@ -24,6 +24,7 @@
 ;; see the TODO file in this directory
 
 ;;; Code:
+(add-to-list 'load-path (file-name-directory (or load-file-name buffer-file-name)))
 (require 'go-gtp)
 (require 'go-gnugo)
 
@@ -35,24 +36,13 @@
   :X
   "which player is to go next")
 
-(defun go-board-whos-turn-string ()
-  (case go-board-whos-turn (:X "black") (:O "white")))
-
-(defun go-board-which-players-turn ()
-  (cadr (assoc go-board-whos-turn go-board-players)))
-
-(defun go-board-toggle-turn ()
-  "Update which player is to go next"
-  (if (equal :X go-board-whos-turn)
-      (setf go-board-whos-turn :O)
-    (setf go-board-whos-turn :X))
-  (if (equal (go-board-which-players-turn) :gnugo)
-      (go-gnugo-send/return "genmove_white"))
-  (go-board-refresh))
-
 (defun go-board-whos-turn ()
   (interactive)
   (message (format "%S" (cadr (assoc go-board-whos-turn go-board-players)))))
+
+(defun current-line-length ()
+  "Length of a the line at point."
+  (save-excursion (end-of-line) (current-column)))
 
 (defun go-board-row-at-point (&optional point)
   (interactive)
@@ -61,10 +51,6 @@
     (move-beginning-of-line 1)
     (if (equal (char-after) 32) (forward-char 1))
     (thing-at-point 'word))))
-
-(defun current-line-length ()
-  "Length of a the line at point."
-  (save-excursion (end-of-line) (current-column)))
 
 (defun go-board-col-at-point (&optional point)
   (interactive)

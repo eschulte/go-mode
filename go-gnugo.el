@@ -24,6 +24,7 @@
 ;; Interaction with gnugo
 
 ;;; CODE:
+(require 'comint)
 
 (defun go-gnugo-gtp-commands ()
   "Return a list of the gnugo GTP commands."
@@ -37,39 +38,51 @@
   "gnugo"
   "path to gnugo executable")
 
-(defvar go-gnugo-kept
-  ""
-  "collects output from gnugo")
+(defvar go-gnugo-process-name
+  "gnugo"
+  "name for the gnugo process")
 
-(defvar go-gnugo-process
-  nil
-  "the gnugo process object")
-
-(defun go-gnugo-keep-output (process output)
-  (setq go-gnugo-kept (concat go-gnugo-kept output)))
+(defvar go-gnugo-buffer nil
+  "comint buffer holding the gnugo processes")
 
 (defun go-gnugo-start-process ()
   (interactive)
-  (let ((proc (apply 'start-process "gnugo" nil go-gnugo-program
-		     "--mode" "gtp" "--quiet" nil)))
-    (set-process-filter proc 'go-gnugo-keep-output)
-    (setf go-gnugo-process proc)))
+  (unless (comint-check-proc go-gnugo-buffer)
+    (setf go-gnugo-buffer
+	  (make-comint go-gnugo-process-name go-gnugo-program nil "--mode" "gtp" "--quiet"))
+    (set-buffer go-gnugo-buffer)
+    (comint-mode)))
 
-(defun go-gnugo-send/return (command)
+(defun go-gnugo-command-to-string (command)
+  "Send command to gnugo process and return gnugo's results as a string"
   (interactive "sgnugo command: ")
-  (if (not go-gnugo-process)
-    (error "no active gnugo process")
-    ;; reset result container
-    (setq go-gnugo-kept nil)
-    ;; send command
-    (process-send-string go-gnugo-process command)
-    (process-send-string go-gnugo-process "\n")
-    ;; wait until gnugo has returned
-    (while (not (and go-gnugo-kept
-		     (equalp (substring go-gnugo-kept -2) "\n\n")))
-      (accept-process-output go-gnugo-process))
-    ;; return gnugo's responce
-    (substring go-gnugo-kept 2 -2)))
+  (go-gnugo-input-command command)
+  (go-gnugo-last-output))
+
+(defun go-gnugo-input-command (command)
+  "Pass COMMAND to the gnugo process running in `go-gnugo-buffer'"
+  (save-excursion
+    (message (format "buffer-%s" go-gnugo-buffer))
+    (set-buffer go-gnugo-buffer)
+    (goto-char (process-mark (get-buffer-process (current-buffer))))
+    (insert command)
+    (comint-send-input)
+    (go-gnugo-wait-for-output)))
+
+(defun go-gnugo-wait-for-output ()
+  "Wait until output arrives"
+  (save-excursion
+    (set-buffer go-gnugo-buffer)
+    (while (progn
+	     (goto-char comint-last-input-end)
+	     (not (re-search-forward "^= *[^\000]+?\n\n" nil t)))
+      (accept-process-output (get-buffer-process (current-buffer))))))
+
+(defun go-gnugo-last-output ()
+  (save-window-excursion
+    (set-buffer go-gnugo-buffer)
+    (comint-show-output)
+    (buffer-substring (point) (point-max))))
 
 (provide 'go-gnugo)
 ;;; go-gnugo.el ends here
