@@ -51,7 +51,9 @@
     (setf go-gnugo-buffer
 	  (make-comint go-gnugo-process-name go-gnugo-program nil "--mode" "gtp" "--quiet"))
     (set-buffer go-gnugo-buffer)
-    (comint-mode)))
+    (comint-mode)
+    ;; just to refresh everything
+    (go-gnugo-input-command "showboard")))
 
 (defun go-gnugo-command-to-string (command)
   "Send command to gnugo process and return gnugo's results as a string"
@@ -73,16 +75,17 @@
   "Wait until output arrives"
   (save-excursion
     (set-buffer go-gnugo-buffer)
-    (while (progn
-	     (goto-char comint-last-input-end)
-	     (not (re-search-forward "^= *[^\000]+?\n\n" nil t)))
-      (accept-process-output (get-buffer-process (current-buffer))))))
+    (catch 'illegal-move
+	(while (progn
+		 (goto-char comint-last-input-end)
+		 (not (re-search-forward "^[=?] *[^\000]+?\n\n" nil t)))
+	  (accept-process-output (get-buffer-process (current-buffer)))))))
 
 (defun go-gnugo-last-output ()
   (save-window-excursion
     (set-buffer go-gnugo-buffer)
     (comint-show-output)
-    (buffer-substring (point) (point-max))))
+    (buffer-substring (+ 2 (point)) (- (point-max) 2))))
 
 (provide 'go-gnugo)
 ;;; go-gnugo.el ends here

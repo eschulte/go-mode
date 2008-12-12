@@ -36,6 +36,9 @@
   :X
   "which player is to go next")
 
+(defvar go-board-buffer-name "*go-board*"
+  "name for the go buffer")
+
 (defun go-board-whos-turn ()
   (interactive)
   (message (format "%S" (cadr (assoc go-board-whos-turn go-board-players)))))
@@ -69,17 +72,18 @@
 (defun go-board-refresh ()
   "Display a GO board depicting the current state of the game."
   (interactive)
+  (set-buffer go-board-buffer-name)
   (let* ((return-p (point))
-	 (new-board (go-gnugo-send/return "showboard"))
+	 (new-board (go-gnugo-command-to-string "showboard"))
 	 (board-height (length (split-string new-board "\n")))
 	 (height (window-height)))
-      (delete-region (point-min) (point-max))
-      (goto-char (point-min))
-      (dotimes (n (/ (- height board-height) 2)) (insert "\n"))
-      (insert new-board)
-      (forward-line (- (/ board-height 2)))
-      (recenter)
-      (goto-char return-p)))
+    (delete-region (point-min) (point-max))
+    (goto-char (point-min))
+    (dotimes (n (/ (- height board-height) 2)) (insert "\n"))
+    (insert new-board)
+    (forward-line (- (/ board-height 2)))
+    (recenter)
+    (goto-char return-p)))
 
 (defun go-board-make-move (&optional color vertex)
   "Make a move on the board and save it to the buffer"
@@ -89,13 +93,14 @@
 	 (vertex (or vertex (go-board-point-to-vertex)))
 	 (gtp-move (go-gtp-move-to-gtp (cons color vertex))))
     (message gtp-move)
-    (go-gnugo-send/return gtp-move)
-    (go-gnugo-send/return "genmove_white")
+    (go-gnugo-input-command gtp-move)
+    (go-gnugo-input-command "genmove_white")
     (go-board-refresh)))
 
 (defun go-board-dragon-stones (stone)
   (interactive)
-  "Indicate the stones in STONEs dragon")
+  "Indicate the stones in STONEs dragon"
+  )
 
 (defun go-board-move-point (direction)
   "Move point one vertex in DIRECTION.  DIRECTION can be 'left
@@ -179,20 +184,17 @@
   (set (make-local-variable 'font-lock-defaults)
        '(go-board-font-lock-keywords t))
   ;; initialize the board
-  (make-local-variable 'go-gnugo-process)
   (go-gnugo-start-process)
   (go-board-refresh)
   (run-mode-hooks 'go-board-mode-hook))
 
 ;;--------------------------------------------------------------------------------
 ;; start up a game
-(defvar go-buffer-name "*go-board*"
-  "name for the go buffer")
 (defun go-start-game ()
   (interactive)
-  (if (get-buffer go-buffer-name) (kill-buffer go-buffer-name))
-  (let ((buffer (get-buffer-create go-buffer-name)))
-    (switch-to-buffer go-buffer-name)
+  (if (get-buffer go-board-buffer-name) (kill-buffer go-board-buffer-name))
+  (let ((buffer (get-buffer-create go-board-buffer-name)))
+    (switch-to-buffer go-board-buffer-name)
     (go-board-mode)))
 
 (provide 'go-board)
