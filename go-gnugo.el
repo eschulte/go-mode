@@ -75,11 +75,12 @@
   "Wait until output arrives"
   (save-excursion
     (set-buffer go-gnugo-buffer)
-    (catch 'illegal-move
-	(while (progn
-		 (goto-char comint-last-input-end)
-		 (not (re-search-forward "^[=?] *[^\000]+?\n\n" nil t)))
-	  (accept-process-output (get-buffer-process (current-buffer)))))))
+    (while (progn
+	     (goto-char comint-last-input-end)
+	     (not (re-search-forward "^= *[^\000]+?\n\n" nil t)))
+      (if (re-search-forward "^? *\\([^\000]+?\\)\n\n" nil t)
+	  (error (match-string 1)))
+      (accept-process-output (get-buffer-process (current-buffer))))))
 
 (defun go-gnugo-last-output ()
   (save-window-excursion

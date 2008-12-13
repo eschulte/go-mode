@@ -61,12 +61,27 @@
 	 (col (save-excursion (goto-char point) (current-column))))
     (save-excursion (goto-char (point-max))
 		    (move-to-column col)
-		    (format "%c" (char-after)))))
+		    (if (char-after) (format "%c" (char-after))))))
 
 (defun go-board-point-to-vertex (&optional point)
   "Convert point or the current point to a vertex in the GO board."
   (interactive)
   (concat (go-board-col-at-point point) (go-board-row-at-point point)))
+
+(defun go-board-vertex-to-point (vertex)
+  "Convert VERTEX to a buffer point"
+  (interactive)
+  (let ((col (and (string-match "\\([[:alpha:]]+\\)[[:digit:]]+" vertex)
+		  (match-string 1 vertex)))
+	(row (and (string-match "[[:alpha:]]+\\([[:digit:]]+\\)" vertex)
+		  (match-string 1 vertex))))
+    (save-excursion
+      (goto-char (point-min))
+      (while (not (equal row (go-board-row-at-point (point))))
+	(forward-line 1))
+      (while (not (equal col (go-board-col-at-point (point))))
+	(forward-char 1))
+      (point))))
 
 ;; TODO: put emphasis on the last move
 (defun go-board-refresh ()
@@ -88,31 +103,55 @@
 (defun go-board-make-move (&optional color vertex)
   "Make a move on the board and save it to the buffer"
   (interactive)
-  (message "go-board-make-move")
   (let* ((color (or color go-board-whos-turn))
 	 (vertex (or vertex (go-board-point-to-vertex)))
-	 (gtp-move (go-gtp-move-to-gtp (cons color vertex))))
+	 (gtp-move (go-gtp-move-to-gtp (cons color vertex)))
+	 white-move)
     (message gtp-move)
     (go-gnugo-input-command gtp-move)
-    (go-gnugo-input-command "genmove_white")
-    (go-board-refresh)))
+    (setf white-move (go-gnugo-command-to-string "genmove_white"))
+    (go-board-refresh)
+    (message (format "white %s" white-move))
+    (go-board-highlight-move white-move)))
 
-(defun go-board-dragon-stones (stone)
+(defun go-board-undo (&optional times)
+  (interactive "p")
+  (let ((times (or times 1)))
+    (dotimes (var times)
+      (go-gnugo-input-command "undo")))
+  (go-board-refresh))
+
+(defun go-board-highlight-move (move)
+  "Highlight the stone indicated by MOVE"
+  ;; (info "(elisp)Overlay Properties")
+  (let ((point (go-board-vertex-to-point move)))
+    (overlay-put (make-overlay point (+ 1 point)) 'face 'highlight)))
+
+(defun go-board-highlight-last-move ()
   (interactive)
-  "Indicate the stones in STONEs dragon"
-  )
+  (let* ((last-move (go-gnugo-command-to-string "last_move"))
+	 (vertex (and (string-match "[blackwhite]+ \\([[:alpha:]]+[[:digit:]]+\\)" last-move)
+		      (match-string 1 last-move))))
+    (go-board-highlight-move vertex)))
+
+(defun go-board-dragon (&optional arg)
+  (interactive "P")
+  "Indicate the stones in MOVE's dragon"
+  (let ((move (go-board-point-to-vertex (point)))
+	dragon)
+    (if arg (setf move (read-from-minibuffer "move: " move)))
+    (setf dragon (go-gnugo-command-to-string (format "dragon_stones %s" move)))
+    (mapcar 'go-board-highlight-move (split-string dragon))
+    (message dragon)))
+
+(defun go-board-gtp-command (&optional command)
+  (interactive)
+  (message (go-gnugo-command-to-string (or command
+					   (completing-read "command: " (go-gnugo-gtp-commands))))))
 
 (defun go-board-move-point (direction)
   "Move point one vertex in DIRECTION.  DIRECTION can be 'left
 'right 'up or 'down."
-  )
-
-(defun go-board-highlight-last-move ()
-  (go-board-highlight-move) ;; use the last_move gtp command
-  )
-
-(defun go-board-highlight-move (vertex)
-  "Emphasize single move on the board."
   )
 
 (defun go-board-highlight-group (verticies)
@@ -122,40 +161,37 @@
 ;;-------------------------------------------------------------------------------
 ;;; go board mode
 (defvar go-board-mode-hook nil)
-
 (defvar go-board-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map " " 'go-board-make-move)
-    (define-key map "g" 'go-gnugo-send/return)
+    (define-key map " " 'go-board-refresh)
     (define-key map "w" 'go-board-whos-turn)
+    (define-key map "l" 'go-board-highlight-last-move)
+    (define-key map "u" 'go-board-undo)
+    (define-key map "d" 'go-board-dragon)
+    (define-key map "c" 'go-board-gtp-command)
     map)
   "Keymap for `go-board-mode'.")
-
 ;; (defface go-board-X
 ;;   '((t :bold t :background "#ecb86a" :foreground "Black"))
 ;;   "Face for black (X) pieces on the GO board."
 ;;   :group 'go-board)
-
 ;; (defface go-board-Y
 ;;   '((t :bold t :background "#ecb86a" :foreground "White"))
 ;;   "Face for white (O) pieces on the GO board."
 ;;   :group 'go-board)
-
 ;; (defface go-board-vertex
 ;;   '((t :bold t :background "#ecb86a" :foreground "Black"))
 ;;   "Face for black (X) pieces on the GO board."
 ;;   :group 'go-board)
-
 ;; (defface go-board-hoshi
 ;;   '((t :bold t :background "#ecb86a" :foreground "Black"))
 ;;   "Face for black (X) pieces on the GO board."
 ;;   :group 'go-board)
-
 (defface go-board-background
   '((t :bold t :background "#ecb86a"))
   "Face for black (X) pieces on the GO board."
   :group 'go-board)
-
 (defconst go-board-font-lock-keywords
   '(
 ;;     ("X" . go-board-X)
