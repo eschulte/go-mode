@@ -21,8 +21,6 @@
 
 ;;; Commentrary:
 
-;; see the TODO file in this directory
-
 ;;; Code:
 (add-to-list 'load-path (file-name-directory (or load-file-name buffer-file-name)))
 (require 'go-gtp)
@@ -71,6 +69,7 @@
 (defun go-board-vertex-to-point (vertex)
   "Convert VERTEX to a buffer point"
   (interactive)
+  (set-buffer go-board-buffer-name)
   (let ((col (and (string-match "\\([[:alpha:]]+\\)[[:digit:]]+" vertex)
 		  (match-string 1 vertex)))
 	(row (and (string-match "[[:alpha:]]+\\([[:digit:]]+\\)" vertex)
@@ -83,7 +82,6 @@
 	(forward-char 1))
       (point))))
 
-;; TODO: put emphasis on the last move
 (defun go-board-refresh ()
   "Display a GO board depicting the current state of the game."
   (interactive)
@@ -123,15 +121,23 @@
 
 (defun go-board-highlight-move (move)
   "Highlight the stone indicated by MOVE"
-  ;; (info "(elisp)Overlay Properties")
   (let ((point (go-board-vertex-to-point move)))
     (overlay-put (make-overlay point (+ 1 point)) 'face 'highlight)))
+
+;; TODO: this works, but the stone is very small, we need to overlay
+;; not only the point but also the four points with which it shares an
+;; edge
+(defun go-board-image-move (move)
+  (let ((point (go-board-vertex-to-point move)))
+    (overlay-put (make-overlay point (+ 1 point)) 'display
+		 (create-image "/home/eschulte/src/go/clients/RubyGo/images/stones/black_10.gif"))))
 
 (defun go-board-highlight-last-move ()
   (interactive)
   (let* ((last-move (go-gnugo-command-to-string "last_move"))
 	 (vertex (and (string-match "[blackwhite]+ \\([[:alpha:]]+[[:digit:]]+\\)" last-move)
 		      (match-string 1 last-move))))
+    (message vertex)
     (go-board-highlight-move vertex)))
 
 (defun go-board-dragon (&optional arg)
@@ -146,16 +152,19 @@
 
 (defun go-board-gtp-command (&optional command)
   (interactive)
-  (message (go-gnugo-command-to-string (or command
-					   (completing-read "command: " (go-gnugo-gtp-commands))))))
+  (message (go-gnugo-command-to-string
+	    (or command
+		(let ((base (completing-read "command: " (go-gnugo-gtp-commands))))
+		  (read-from-minibuffer "command: " base))))))
+
+(defun go-board-save (&optional file)
+  (interactive "Fsave-to: ")
+  (with-temp-file file
+    (insert (go-gnugo-command-to-string "printsgf"))))
 
 (defun go-board-move-point (direction)
   "Move point one vertex in DIRECTION.  DIRECTION can be 'left
 'right 'up or 'down."
-  )
-
-(defun go-board-highlight-group (verticies)
-  "Emphasize a group of vertices on the board."
   )
 
 ;;-------------------------------------------------------------------------------
@@ -164,12 +173,13 @@
 (defvar go-board-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map " " 'go-board-make-move)
-    (define-key map " " 'go-board-refresh)
+    (define-key map "r" 'go-board-refresh)
     (define-key map "w" 'go-board-whos-turn)
     (define-key map "l" 'go-board-highlight-last-move)
     (define-key map "u" 'go-board-undo)
     (define-key map "d" 'go-board-dragon)
     (define-key map "c" 'go-board-gtp-command)
+    (define-key map "s" 'go-board-save)
     map)
   "Keymap for `go-board-mode'.")
 ;; (defface go-board-X
@@ -200,11 +210,6 @@
 ;;     ("+" . go-board-hoshi)
     )
   "Font lock keywords for `go-board-mode'.")
-
-;;
-;; (add-to-list 'load-path "~/projects/go/go-mode/")
-;; (require 'go-board)
-;;
 
 ;;;###autoload
 (defun go-board-mode ()
