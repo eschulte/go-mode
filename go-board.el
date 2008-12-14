@@ -23,9 +23,7 @@
 
 ;;; Code:
 (let ((this-dir (file-name-directory (or load-file-name buffer-file-name))))
-  (add-to-list 'load-path this-dir)
-  (defvar go-board-image-dir (expand-file-name "images" this-dir)
-    "Where the images are"))
+  (add-to-list 'load-path this-dir))
 (require 'go-gtp)
 (require 'go-gnugo)
 
