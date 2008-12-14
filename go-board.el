@@ -22,7 +22,10 @@
 ;;; Commentrary:
 
 ;;; Code:
-(add-to-list 'load-path (file-name-directory (or load-file-name buffer-file-name)))
+(let ((this-dir (file-name-directory (or load-file-name buffer-file-name))))
+  (add-to-list 'load-path this-dir)
+  (defvar go-board-image-dir (expand-file-name "images" this-dir)
+    "Where the images are"))
 (require 'go-gtp)
 (require 'go-gnugo)
 
@@ -34,8 +37,15 @@
   :X
   "which player is to go next")
 
-(defvar go-board-buffer-name "*go-board*"
+(defvar go-board-buffer-name
+  "*go-board*"
   "name for the go buffer")
+
+(defvar go-board-cols
+  '(?A ?B ?C ?D ?E ?F ?G ?H ?J ?K ?L ?M ?N ?O ?P ?Q ?R ?S ?T))
+
+(defvar go-board-rows
+  '("1" "2" "3" "4" "5" "6" "7" "8" "9" "10" "11" "12" "13" "14" "15" "16" "17" "18" "19"))
 
 (defun go-board-whos-turn ()
   (interactive)
@@ -64,7 +74,10 @@
 (defun go-board-point-to-vertex (&optional point)
   "Convert point or the current point to a vertex in the GO board."
   (interactive)
-  (concat (go-board-col-at-point point) (go-board-row-at-point point)))
+  (let* ((point (or point (point)))
+	 (vertex (concat (go-board-col-at-point point) (go-board-row-at-point point))))
+    (when (interactive-p) (message vertex))
+    vertex))
 
 (defun go-board-vertex-to-point (vertex)
   "Convert VERTEX to a buffer point"
@@ -96,6 +109,7 @@
     (insert new-board)
     (forward-line (- (/ board-height 2)))
     (recenter)
+    (go-board-paint)
     (goto-char return-p)))
 
 (defun go-board-make-move (&optional color vertex)
@@ -110,27 +124,20 @@
     (setf white-move (go-gnugo-command-to-string "genmove_white"))
     (go-board-refresh)
     (message (format "white %s" white-move))
-    (go-board-highlight-move white-move)))
+    (go-board-highlight-stone white-move)))
 
 (defun go-board-undo (&optional times)
   (interactive "p")
   (let ((times (or times 1)))
     (dotimes (var times)
       (go-gnugo-input-command "undo")))
-  (go-board-refresh))
+  (go-board-refresh)
+  (go-board-highlight-last-move))
 
-(defun go-board-highlight-move (move)
+(defun go-board-highlight-stone (move)
   "Highlight the stone indicated by MOVE"
   (let ((point (go-board-vertex-to-point move)))
     (overlay-put (make-overlay point (+ 1 point)) 'face 'highlight)))
-
-;; TODO: this works, but the stone is very small, we need to overlay
-;; not only the point but also the four points with which it shares an
-;; edge
-(defun go-board-image-move (move)
-  (let ((point (go-board-vertex-to-point move)))
-    (overlay-put (make-overlay point (+ 1 point)) 'display
-		 (create-image "/home/eschulte/src/go/clients/RubyGo/images/stones/black_10.gif"))))
 
 (defun go-board-highlight-last-move ()
   (interactive)
@@ -138,7 +145,28 @@
 	 (vertex (and (string-match "[blackwhite]+ \\([[:alpha:]]+[[:digit:]]+\\)" last-move)
 		      (match-string 1 last-move))))
     (message vertex)
-    (go-board-highlight-move vertex)))
+    (go-board-highlight-stone vertex)))
+
+(defun go-board-paint-point (&optional point)
+  (interactive)
+  (let ((point (or point (point))))
+    (case (char-after point)
+      ((?  ?.) (overlay-put (make-overlay point (+ 1 point)) 'face 'go-board-background))
+      (?+ (overlay-put (make-overlay point (+ 1 point)) 'face 'go-board-hoshi))
+      (?O (overlay-put (make-overlay point (+ 1 point)) 'face 'go-board-white))
+      (?X (overlay-put (make-overlay point (+ 1 point)) 'face 'go-board-black)))))
+
+(defun go-board-paint ()
+  (interactive)
+  (save-excursion
+    (set-buffer go-board-buffer-name)
+    (goto-char (go-board-vertex-to-point "A19"))
+    (dotimes (row 19)
+      (dotimes (col 37)
+	(go-board-paint-point)
+	(forward-char 1))
+      (forward-line 1)
+      (forward-char 3))))
 
 (defun go-board-dragon (&optional arg)
   (interactive "P")
@@ -147,8 +175,12 @@
 	dragon)
     (if arg (setf move (read-from-minibuffer "move: " move)))
     (setf dragon (go-gnugo-command-to-string (format "dragon_stones %s" move)))
-    (mapcar 'go-board-highlight-move (split-string dragon))
+    (mapcar 'go-board-highlight-stone (split-string dragon))
     (message dragon)))
+
+(defun go-board-estimate-score ()
+  (interactive)
+  (go-board-gtp-command "estimate_score"))
 
 (defun go-board-gtp-command (&optional command)
   (interactive)
@@ -161,6 +193,16 @@
   (interactive "Fsave-to: ")
   (with-temp-file file
     (insert (go-gnugo-command-to-string "printsgf"))))
+
+(defun go-board-quit ()
+  "quit the current game, prompting for a save"
+  (interactive)
+  (if (y-or-n-p "Save Game?") (go-board-save))
+  (kill-buffer go-board-buffer-name))
+
+(defun go-board-suspend ()
+  "Quickly drop down the go board"
+  (bury-buffer))
 
 (defun go-board-move-point (direction)
   "Move point one vertex in DIRECTION.  DIRECTION can be 'left
@@ -178,8 +220,13 @@
     (define-key map "l" 'go-board-highlight-last-move)
     (define-key map "u" 'go-board-undo)
     (define-key map "d" 'go-board-dragon)
+    (define-key map "e" 'go-board-estimate-score)
     (define-key map "c" 'go-board-gtp-command)
+    (define-key map "p" 'go-board-point-to-vertex)
+    (define-key map "m" 'go-board-point-to-vertex)
     (define-key map "s" 'go-board-save)
+    (define-key map "z" 'go-board-suspend)
+    (define-key map "q" 'go-board-quit)
     map)
   "Keymap for `go-board-mode'.")
 ;; (defface go-board-X
@@ -198,18 +245,34 @@
 ;;   '((t :bold t :background "#ecb86a" :foreground "Black"))
 ;;   "Face for black (X) pieces on the GO board."
 ;;   :group 'go-board)
-(defface go-board-background
-  '((t :bold t :background "#ecb86a"))
-  "Face for black (X) pieces on the GO board."
-  :group 'go-board)
+;; (defface go-board-background
+;;   '((t :bold t :background "#ecb86a"))
+;;   "Face for black (X) pieces on the GO board."
+;;   :group 'go-board)
 (defconst go-board-font-lock-keywords
   '(
-;;     ("X" . go-board-X)
-;;     ("O" . go-board-O)
-;;     ("." . go-board-vertex)
-;;     ("+" . go-board-hoshi)
+    ;; ;;     ("X" . go-board-X)
+    ;; ;;     ("O" . go-board-O)
+    ;; ;;     ("." . go-board-vertex)
+    ;; ;;     ("+" . go-board-hoshi)
     )
   "Font lock keywords for `go-board-mode'.")
+
+(defface go-board-background
+  '((t (:background "#b36108" :foreground "#6f3c04")))
+  "woodsy background")
+
+(defface go-board-hoshi
+  '((t (:background "#b36108" :foreground "#6d3300")))
+  "woodsy background with darker hoshi mark")
+
+(defface go-board-black
+  '((t (:background "#b36108" :foreground "black")))
+  "black piece on woodsy background")
+
+(defface go-board-white
+  '((t (:background "#b36108" :foreground "white")))
+  "white piece on woodsy background")
 
 ;;;###autoload
 (defun go-board-mode ()
