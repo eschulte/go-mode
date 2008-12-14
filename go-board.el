@@ -147,6 +147,18 @@
     (message vertex)
     (go-board-highlight-stone vertex)))
 
+(defun go-board-image-at-point (&optional point)
+  (interactive)
+  (go-board-image-stone (go-board-point-to-vertex (or point (point)))))
+
+;; TODO: this works, but the stone is very small, we need to overlay
+;; not only the point but also the four points with which it shares an
+;; edge
+(defun go-board-image-stone (move)
+  (let ((point (go-board-vertex-to-point move)))
+    (overlay-put (make-overlay point (+ 1 point)) 'display
+		 (create-image (expand-file-name "black_center.gif" go-board-image-dir)))))
+
 (defun go-board-paint-point (&optional point)
   (interactive)
   (let ((point (or point (point))))
