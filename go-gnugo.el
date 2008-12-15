@@ -45,11 +45,12 @@
 (defvar go-gnugo-buffer nil
   "comint buffer holding the gnugo processes")
 
-(defun go-gnugo-start-process ()
+(defun go-gnugo-start-process (&optional options)
   (interactive)
   (unless (comint-check-proc go-gnugo-buffer)
     (setf go-gnugo-buffer
-	  (make-comint go-gnugo-process-name go-gnugo-program nil "--mode" "gtp" "--quiet"))
+	  (apply 'make-comint go-gnugo-process-name go-gnugo-program nil "--mode" "gtp" "--quiet"
+		 (if options (split-string options))))
     (set-buffer go-gnugo-buffer)
     (comint-mode)
     ;; just to refresh everything
