@@ -38,10 +38,14 @@
   (format "%s %s" (case (car move) (:X "black") (:O "white")) (cdr move)))
 
 (defun go-gtp-letter-to-number (letter)
-  (cdr (assoc letter)))
+  (unless (characterp letter (setf letter (string-to-char letter))))
+  (cdr (assoc letter go-gtp-letter-number-conversions)))
 
 (defun go-gtp-number-to-letter (number)
-  (car (rassoc number)))
+  (let ((result (car (rassoc number go-gtp-letter-number-conversions))))
+    (if result
+	(unless (stringp result)
+	  (char-to-string result)))))
 
 (defun go-gtp-point-to-gtp (point-string)
   (format "%s%d"

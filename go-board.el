@@ -21,6 +21,11 @@
 
 ;;; Commentrary:
 
+;; In recent edits of this repo (since about December 08) this has
+;; become the main file with reliance on go-gnugo.el
+;;
+;; the main function is `go-start-game'
+
 ;;; Code:
 (let ((this-dir (file-name-directory (or load-file-name buffer-file-name))))
   (add-to-list 'load-path this-dir))
@@ -43,6 +48,9 @@
 (defvar gb-default-save-dir
   "~/docs/games/go/"
   "default directory in which to save go games")
+
+(defvar gb-default-level 6
+  "default level passed to gnugo")
 
 (defvar gb-cols
   '(?A ?B ?C ?D ?E ?F ?G ?H ?J ?K ?L ?M ?N ?O ?P ?Q ?R ?S ?T))
@@ -253,9 +261,9 @@ background according to the owning player."
 
 (defun gb-save (&optional file)
   (interactive)
-  (with-temp-file (or file (read-from-minibuffer ;; TODO filename completion
-			    "save to: " (or gb-default-save-dir
-					    default-directory)))
+  (with-temp-file (or file (read-file-name
+			    "save to: " (or gb-default-save-dir default-directory)
+			    nil nil (format-time-string "%Y-%m-%d-vs-gnugo.sgf" (current-time))))
     (insert (go-gnugo-command-to-string "printsgf"))))
 
 (defun gb-quit ()
@@ -273,14 +281,56 @@ background according to the owning player."
 (defun gb-move-point (direction)
   "Move point one stone in DIRECTION.  DIRECTION can be 'left
 'right 'up or 'down."
-  )
+  (let* ((stone (gb-point-to-stone))
+	 (nothing (message (format "stone %S" stone)))
+	 (col (and (string-match "\\([[:alpha:]]+\\)[[:digit:]]+" stone)
+		   (message (format "col %s" (match-string 1 stone)))
+		   (go-gtp-letter-to-number (match-string 1 stone))))
+	 (row (and (string-match "[[:alpha:]]+\\([[:digit:]]+\\)" stone)
+		   (string-to-int (match-string 1 stone))))
+	 final-point)
+    (message stone)
+    (message (format "moving %S" direction))
+    (message (format "%S %S" row col))
+    (case direction
+      ('up (setf row (+ row 1)))
+      ('down (setf row (- row 1)))
+      ('left (setf col (go-gtp-number-to-letter (- col 1))))
+      ('right (setf col (go-gtp-number-to-letter (+ col 1))))
+      (t (error (format "%s is an invalid direction" direction))))
+    (if (numberp col) (setf col (go-gtp-number-to-letter col)))
+    (setf row (int-to-string row))
+    (setf final-point (gb-stone-to-point (concat col row)))
+    (message (format "final-point %d" final-point))
+    (if final-point
+	(goto-char final-point)
+      (message "impossible move"))))
+
+(mapcar
+ (lambda (dir)
+   (eval `(defun ,(intern (concat "gb-move-point-" dir)) ()
+	    (interactive)
+	    ,(format "Move the point one space %s on the go board.  Relies on `gb-move-point'" dir)
+	    (gb-move-point ',(intern dir)))))
+ '("up" "left" "right" "down"))
 
 ;;-------------------------------------------------------------------------------
 ;;; go board mode
 (defvar gb-mode-hook nil)
 (defvar gb-mode-map
   (let ((map (make-sparse-keymap)))
+    ;; movement functions
+    (define-key map "i" 'gb-move-point-up)
+    (define-key map "o" 'gb-move-point-up)
+    (define-key map "u" 'gb-move-point-up)
+    (define-key map "j" 'gb-move-point-left)
+    (define-key map "m" 'gb-move-point-down)
+    (define-key map "," 'gb-move-point-down)
+    (define-key map "l" 'gb-move-point-right)
+    (define-key map "k" 'gb-make-move)
     (define-key map " " 'gb-make-move)
+    (define-key map "P" 'gb-pass)
+    ;; other functions
     (define-key map "a" 'gb-attack-stone)
     (define-key map "c" 'gb-gtp-command)
     (define-key map "d" 'gb-defend-stone)
@@ -289,8 +339,7 @@ background according to the owning player."
     (define-key map "f" 'gb-paint-final)
     (define-key map "r" 'gb-refresh)
     (define-key map "w" 'gb-whos-turn)
-    (define-key map "l" 'gb-highlight-last-move)
-    (define-key map "m" 'gb-point-to-stone)
+    (define-key map "L" 'gb-highlight-last-move)
     (define-key map "p" 'gb-point-to-stone)
     (define-key map "q" 'gb-quit)
     (define-key map "s" 'gb-save)
@@ -368,14 +417,20 @@ background according to the owning player."
   (run-mode-hooks 'gb-mode-hook))
 
 ;;--------------------------------------------------------------------------------
-;; start up a game
 (defun go-start-game (&optional arg)
-  (interactive)
+  (interactive "P")
   (if (get-buffer gb-buffer-name) (kill-buffer gb-buffer-name))
   (let ((buffer (get-buffer-create gb-buffer-name))
-	(args (if arg (read-from-minibuffer "args to gnugo: "))))
+	(args (read-from-minibuffer "gnugo: " (format "--level %d" (or arg gb-default-level)))))
     (switch-to-buffer gb-buffer-name)
     (gb-mode args)))
 
-(provide 'gb)
+(defun go-load-game (&optional path)
+  (interactive "fsgf-file: ")
+  (setf path (expand-file-name path))
+  (go-start-game)
+  (go-gnugo-input-command (concat "loadsgf " path))
+  (gb-refresh))
+
+(provide 'go-board)
 ;;; gb.el ends here
