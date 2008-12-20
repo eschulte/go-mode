@@ -132,7 +132,6 @@
 	 (stone (or stone (gb-point-to-stone)))
 	 (gtp-move (go-gtp-move-to-gtp (cons color stone)))
 	 white-move)
-    (message gtp-move)
     (go-gnugo-input-command gtp-move)
     (setf white-move (go-gnugo-command-to-string "genmove_white"))
     (gb-refresh)
@@ -224,7 +223,8 @@ background according to the owning player."
     (if arg (setf move (read-from-minibuffer "move: " move)))
     (setf dragon (go-gnugo-command-to-string (format "dragon_stones %s" move)))
     (mapcar 'gb-highlight-stone (split-string dragon))
-    (message dragon)))
+    (message dragon)
+    (message (format "%s liberties" (go-gnugo-command-to-string (format "countlib %s" move))))))
 
 (defun gb-attack-stone (&optional stone)
   (interactive)
@@ -276,42 +276,43 @@ background according to the owning player."
 
 (defun gb-suspend ()
   "Quickly drop down the go board"
+  (interactive)
   (bury-buffer))
 
-(defun gb-move-point (direction)
+(defun gb-move-point (direction &optional num)
   "Move point one stone in DIRECTION.  DIRECTION can be 'left
 'right 'up or 'down."
-  (let* ((stone (gb-point-to-stone))
-	 (nothing (message (format "stone %S" stone)))
+  (let* ((num (or num 1))
+	 (stone (gb-point-to-stone))
+	 (stone (if (string-match "[[:alpha:]]+[[:digit:]]+" stone)
+		    stone
+		  (gb-point-to-stone (+ 1 (point)))))
 	 (col (and (string-match "\\([[:alpha:]]+\\)[[:digit:]]+" stone)
-		   (message (format "col %s" (match-string 1 stone)))
 		   (go-gtp-letter-to-number (match-string 1 stone))))
 	 (row (and (string-match "[[:alpha:]]+\\([[:digit:]]+\\)" stone)
 		   (string-to-int (match-string 1 stone))))
 	 final-point)
-    (message stone)
-    (message (format "moving %S" direction))
-    (message (format "%S %S" row col))
     (case direction
-      ('up (setf row (+ row 1)))
-      ('down (setf row (- row 1)))
-      ('left (setf col (go-gtp-number-to-letter (- col 1))))
-      ('right (setf col (go-gtp-number-to-letter (+ col 1))))
+      ('up (setf row (+ row num)))
+      ('down (setf row (- row num)))
+      ('left (setf col (- col num)))
+      ('right (setf col (+ col num)))
       (t (error (format "%s is an invalid direction" direction))))
+    (if (or (> row 19) (> col 19) (< row 1) (< col 1))
+	(error "can't move off of the board"))
     (if (numberp col) (setf col (go-gtp-number-to-letter col)))
     (setf row (int-to-string row))
     (setf final-point (gb-stone-to-point (concat col row)))
-    (message (format "final-point %d" final-point))
     (if final-point
 	(goto-char final-point)
       (message "impossible move"))))
 
 (mapcar
  (lambda (dir)
-   (eval `(defun ,(intern (concat "gb-move-point-" dir)) ()
-	    (interactive)
+   (eval `(defun ,(intern (concat "gb-move-point-" dir)) (&optional num)
+	    (interactive "p")
 	    ,(format "Move the point one space %s on the go board.  Relies on `gb-move-point'" dir)
-	    (gb-move-point ',(intern dir)))))
+	    (gb-move-point ',(intern dir) num))))
  '("up" "left" "right" "down"))
 
 ;;-------------------------------------------------------------------------------
